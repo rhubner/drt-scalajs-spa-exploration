@@ -27,7 +27,7 @@ class LGWFeedSpec extends TestKit(ActorSystem("testActorSystem", ConfigFactory.e
       //      cfg.setServiceProviderMetadataPath(new File("target", "sp-metadata.xml").getAbsolutePath)
 
       val saml2Client = new SAML2Client(cfg)
-  //http://stackoverflow.com/questions/11952274/how-can-i-create-keystore-from-an-existing-certificate-abc-crt-and-abc-key-fil
+      //http://stackoverflow.com/questions/11952274/how-can-i-create-keystore-from-an-existing-certificate-abc-crt-and-abc-key-fil
 
 
     }
