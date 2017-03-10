@@ -24,12 +24,9 @@ class LGWFeedSpec extends TestKit(ActorSystem("testActorSystem", ConfigFactory.e
       val cfg = new SAML2ClientConfiguration("resource:/tmp/samlKeystore.jks", "pac4j-demo-passwd", "pac4j-demo-passwd", "resource:openidp-feide.xml")
       cfg.setMaximumAuthenticationLifetime(3600)
       cfg.setServiceProviderEntityId("urn:mace:saml:pac4j.org")
-      //      cfg.setServiceProviderMetadataPath(new File("target", "sp-metadata.xml").getAbsolutePath)
+//      cfg.setServiceProviderMetadataPath(new File("target", "sp-metadata.xml").getAbsolutePath)
 
       val saml2Client = new SAML2Client(cfg)
-      //http://stackoverflow.com/questions/11952274/how-can-i-create-keystore-from-an-existing-certificate-abc-crt-and-abc-key-fil
-
-
     }
   }
 }
