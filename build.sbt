@@ -73,39 +73,35 @@ lazy val server = (project in file("server"))
   .enablePlugins(PlayScala, WebScalaJSBundlerPlugin)
   .disablePlugins(PlayLayoutPlugin) // use the standard directory layout instead of Play's custom
   .settings(
-  name := "drt",
-  version := Settings.version,
-  scalaVersion := Settings.versions.scala,
-  scalacOptions ++= Settings.scalacOptions,
+    name := "drt",
+    version := Settings.version,
+    scalaVersion := Settings.versions.scala,
+    scalacOptions ++= Settings.scalacOptions,
   javaOptions in Test += "-Duser.timezone=UTC",
   javaOptions in Runtime += "-Duser.timezone=UTC",
-  libraryDependencies ++= Settings.jvmDependencies.value,
-  commands += ReleaseCmd,
-  // connect to the client project
-  scalaJSProjects := clients,
-  pipelineStages := Seq(scalaJSProd, digest, gzip),
-  pipelineStages in Assets := Seq(scalaJSPipeline),
-  // triggers scalaJSPipeline when using compile or continuous compilation
-  compile in Compile := ((compile in Compile) dependsOn scalaJSPipeline).value,
-  testFrameworks += new TestFramework("utest.runner.Framework"),
-  resolvers ++= Seq(
-    "BeDataDriven" at "https://nexus.bedatadriven.com/content/groups/public",
-    Resolver.bintrayRepo("mfglabs", "maven"),
-    Resolver.bintrayRepo("dwhjames", "maven"),
-    "release" at "https://artifactory.digital.homeoffice.gov.uk/artifactory/libs-release-local",
-    Resolver.defaultLocal),
-  publishArtifact in(Compile, packageBin) := false,
-  // Disable scaladoc generation for this project (useless)
-  publishArtifact in(Compile, packageDoc) := false,
-  // Disable source jar for this project (useless)
-  publishArtifact in(Compile, packageSrc) := false,
-  credentials += Credentials(Path.userHome / ".ivy2" / ".credentials"),
-  // compress CSS
-  LessKeys.compress in Assets := true,
-  PB.targets in Compile := Seq(
-    scalapb.gen() -> (sourceManaged in Compile).value
+    libraryDependencies ++= Settings.jvmDependencies.value,
+    commands += ReleaseCmd,
+    // connect to the client project
+    scalaJSProjects := clients,
+    pipelineStages := Seq(scalaJSProd, digest, gzip),
+    testFrameworks += new TestFramework("utest.runner.Framework"),
+    resolvers += "BeDataDriven" at "https://nexus.bedatadriven.com/content/groups/public",
+    resolvers += "release" at "https://artifactory.digital.homeoffice.gov.uk/artifactory/libs-release-local",
+    resolvers += Resolver.defaultLocal,
+    publishArtifact in(Compile, packageBin) := false,
+    // Disable scaladoc generation for this project (useless)
+    publishArtifact in(Compile, packageDoc) := false,
+    // Disable source jar for this project (useless)
+    publishArtifact in(Compile, packageSrc) := false,
+    credentials += Credentials(Path.userHome / ".ivy2" / ".credentials"),
+    // compress CSS
+    LessKeys.compress in Assets := true,
+    PB.targets in Compile := Seq(
+      scalapb.gen() -> (sourceManaged in Compile).value
+    )
   )
-)
+  .enablePlugins(PlayScala)
+  .disablePlugins(PlayLayoutPlugin) // use the standard directory layout instead of Play's custom
   .aggregate(clients.map(projectToRef): _*)
   .dependsOn(sharedJVM)
 

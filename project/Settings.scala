@@ -98,7 +98,9 @@ object Settings {
     "com.lihaoyi" %% "pprint" % "0.4.3",
     "org.scalacheck" %% "scalacheck" % "1.13.4" % "test",
 
-  "joda-time" % "joda-time" % "2.9.4") :::
+  "joda-time" % "joda-time" % "2.9.4",
+    "org.pac4j" % "pac4j-saml" % "2.0.0-RC1"
+  ) :::
     List("io.spray" %% "spray-client" % versions.sprayVersion,
       "io.spray" %% "spray-routing" % versions.sprayVersion,
       "io.spray" %% "spray-json" % "1.3.2",
