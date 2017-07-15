@@ -14,6 +14,7 @@ import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
 import org.apache.commons.io.IOUtils
 import org.joda.time.DateTime
+import org.opensaml.DefaultBootstrap
 import org.opensaml.saml2.core.Assertion
 import org.opensaml.saml2.core.impl._
 import org.opensaml.xml.Configuration
@@ -24,12 +25,24 @@ import org.opensaml.xml.signature.impl.SignatureBuilder
 import org.opensaml.xml.util.XMLHelper
 import org.opensaml.xml.security.x509.BasicX509Credential
 import org.specs2.mutable.SpecificationLike
-import org.w3c.dom.Element
 
-class LGWFeedSpec extends TestKit(ActorSystem("testActorSystem", ConfigFactory.empty())) with SpecificationLike {
+import scala.collection.JavaConverters._
+import org.w3c.dom.Element
+import shapeless.~>
+import spray.http.FormData
+
+import scala.concurrent.{Await, Future}
+
+class LGWFeedSpec extends TestKit(ActorSystem("testActorSystem", ConfigFactory.parseMap(Map(
+  "PORT_CODE" -> "LGW",
+  "feeds.gatwick.live.azure.name.id" -> "UKBF",
+  "feeds.gatwick.live.azure.issuer" -> "UKBF",
+  "feeds.gatwick.live.azure.namespace" -> "gatwick-data-hub-test"
+).asJava))) with SpecificationLike {
+
   //  val tokenScope = s"http://${xxx}.servicebus.windows.net/partners/${yyy}/to"
   //  val httpPostUri = s"https://${xxx}-sb.accesscontrol.windows.net/v2/OAuth2-13"
-//  val acsTokenServiceGrant = "urn:oasis:names:tc:SAML:2.0:assertion"
+  //  val acsTokenServiceGrant = "urn:oasis:names:tc:SAML:2.0:assertion"
 
   //http://stackoverflow.com/questions/11952274/how-can-i-create-keystore-from-an-existing-certificate-abc-crt-and-abc-key-fil
 
@@ -80,16 +93,18 @@ class LGWFeedSpec extends TestKit(ActorSystem("testActorSystem", ConfigFactory.e
   def createAzureSamlAssertionAsString(privateKey: Array[Byte], certificate: Array[Byte]): String = {
     val assertion = createAzureSamlAssertion(privateKey, certificate)
 
-    //    val factory: MarshallerFactory = Configuration.getMarshallerFactory
-    //    val marshaller1: Marshaller = factory.getMarshaller(assertion)
-    //    val marshall: Element = marshaller1.marshall(assertion)
-    //    Signer.signObject(assertion.getSignature)
+    // welcome to java and its horrendous mutating method magic. the following two lines
+    // do something important to the signature
+    Configuration.getMarshallerFactory.getMarshaller(assertion).marshall(assertion)
+    Signer.signObject(assertion.getSignature)
 
     val marshaller = new ResponseMarshaller
     val plain = marshaller.marshall(assertion)
 
     XMLHelper.nodeToString(plain)
   }
+
+  val config = system.settings.config
 
   def createAzureSamlAssertion(privateKey: Array[Byte], certificate: Array[Byte]): Assertion = {
     val builder: AssertionBuilder = new AssertionBuilder()
@@ -98,7 +113,8 @@ class LGWFeedSpec extends TestKit(ActorSystem("testActorSystem", ConfigFactory.e
     assertion.setIssueInstant(new DateTime())
 
     val nameId = new NameIDBuilder().buildObject
-    nameId.setValue(ConfigFactory.load.getString("feeds.gatwick.live.azure.name.id"))
+    //    val config = ConfigFactory.load
+    nameId.setValue(config.getString("feeds.gatwick.live.azure.name.id"))
 
     val subject = new SubjectBuilder().buildObject
     subject.setNameID(nameId)
@@ -109,7 +125,7 @@ class LGWFeedSpec extends TestKit(ActorSystem("testActorSystem", ConfigFactory.e
     subject.getSubjectConfirmations.add(subjectConfirmation)
 
     val audience = new AudienceBuilder().buildObject
-    audience.setAudienceURI("https://" + ConfigFactory.load.getString("feeds.gatwick.live.azure.namespace") + "-sb.accesscontrol.windows.net")
+    audience.setAudienceURI("https://" + config.getString("feeds.gatwick.live.azure.namespace") + "-sb.accesscontrol.windows.net")
 
     val audienceRestriction = new AudienceRestrictionBuilder().buildObject
     audienceRestriction.getAudiences.add(audience)
@@ -119,7 +135,7 @@ class LGWFeedSpec extends TestKit(ActorSystem("testActorSystem", ConfigFactory.e
     assertion.setConditions(conditions)
 
     val issuer = new IssuerBuilder().buildObject
-    issuer.setValue(ConfigFactory.load.getString("feeds.gatwick.live.azure.issuer"))
+    issuer.setValue(config.getString("feeds.gatwick.live.azure.issuer"))
     assertion.setIssuer(issuer)
 
     signAssertion(assertion, privateKey, certificate)
@@ -136,15 +152,19 @@ class LGWFeedSpec extends TestKit(ActorSystem("testActorSystem", ConfigFactory.e
     assertion.setSignature(signature)
   }
 
+  val GRANT = "urn:oasis:names:tc:SAML:2.0:assertion"
+
+
   "something" should {
     "do something" in {
-      val certificateURI = FileSystems.getDefault.getPath("/tmp/drt-lgw.cert")
+      DefaultBootstrap.bootstrap()
+      val certificateURI = FileSystems.getDefault.getPath("/home/lance/clients/sf_clients/homeoffice/drt/certs/idahoconnect.drt.homeoffice.gov.uk.cert")
 
       if (!certificateURI.toFile.canRead) {
         throw new Exception(s"Could not read Gatwick certificate file from /tmp/drt-lgw.cert")
       }
 
-      val privateKeyURI = FileSystems.getDefault.getPath("/tmp/drt-lgw.pem")
+      val privateKeyURI = FileSystems.getDefault.getPath("/home/lance/clients/sf_clients/homeoffice/drt/certs/idahoconnect.drt.homeoffice.gov.uk.private-pkcs8.pem")
 
       if (!privateKeyURI.toFile.canRead) {
         throw new Exception(s"Could not read Gatwick private key file from /tmp/drt-lgw.pem")
@@ -161,7 +181,38 @@ class LGWFeedSpec extends TestKit(ActorSystem("testActorSystem", ConfigFactory.e
 
       val assertion = createAzureSamlAssertionAsString(privateKey, certificate)
 
-      assertion === "yeah"
+      assert(assertion.startsWith("""<?xml version="1.0" encoding="UTF-8"?><saml2:Assertion xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion" ID=""""))
+      import spray.http.HttpHeaders.{Accept, Authorization}
+      import spray.http.{HttpRequest, HttpResponse, MediaTypes, OAuth2BearerToken}
+      import spray.httpx.SprayJsonSupport // intellij may try to remove this, don't let it or unmarshall will stop working
+
+      val azureServiceNamespace = config.getString("feeds.gatwick.live.azure.namespace")
+      val issuer = config.getString("feeds.gatwick.live.azure.issuer")
+      val tokenScope = s"http://$azureServiceNamespace.servicebus.windows.net/partners/$issuer/to"
+      val httpPostUri = s"https://$azureServiceNamespace-sb.accesscontrol.windows.net/v2/OAuth2-13"
+
+      val paramsAsForm = FormData(Map(
+        "scope" -> tokenScope,
+        "grant_type" -> GRANT,
+        "assertion" -> assertion
+      ))
+      import spray.client.pipelining._
+      import system.dispatcher
+
+      val logRequest: HttpRequest => HttpRequest = { r => println(r); r }
+      val logResponse: HttpResponse => HttpResponse = { r => println(r); r }
+
+      val postResult: Future[HttpResponse] = (
+        Post(httpPostUri, paramsAsForm)
+          ~> logRequest
+          ~> sendReceive)
+
+      import scala.concurrent.duration._
+
+      val result = Await.result(postResult, 10 seconds)
+      println(s"result $result")
+      false
+
     }
   }
 }
