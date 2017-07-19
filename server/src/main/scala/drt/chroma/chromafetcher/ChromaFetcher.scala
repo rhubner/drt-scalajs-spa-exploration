@@ -18,6 +18,7 @@ import scala.concurrent.{Await, Future}
 object ChromaFetcher {
 
   case class ChromaToken(access_token: String, token_type: String, expires_in: Int)
+  case class AzureToken(access_token: String, token_type: String, expires_in: String)
 
   case class ChromaSingleFlight(Operator: String,
                                 Status: String,
@@ -39,8 +40,8 @@ object ChromaFetcher {
                                 IATA: String,
                                 Origin: String,
                                 SchDT: String)
-
 }
+
 trait ChromaFetcher extends ChromaConfig with WithSendAndReceive {
   implicit val system: ActorSystem
 

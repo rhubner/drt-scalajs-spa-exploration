@@ -12,6 +12,8 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
+import drt.chroma.chromafetcher.ChromaFetcher.ChromaToken
+import drt.chroma.chromafetcher.ChromaParserProtocol
 import org.apache.commons.io.IOUtils
 import org.joda.time.DateTime
 import org.opensaml.DefaultBootstrap
@@ -19,7 +21,7 @@ import org.opensaml.saml2.core.Assertion
 import org.opensaml.saml2.core.impl._
 import org.opensaml.xml.Configuration
 import org.opensaml.xml.io.{Marshaller, MarshallerFactory}
-import org.opensaml.xml.security.SecurityHelper
+import org.opensaml.xml.security.{DefaultSecurityConfigurationBootstrap, SecurityHelper}
 import org.opensaml.xml.signature.Signer
 import org.opensaml.xml.signature.impl.SignatureBuilder
 import org.opensaml.xml.util.XMLHelper
@@ -28,8 +30,10 @@ import org.specs2.mutable.SpecificationLike
 
 import scala.collection.JavaConverters._
 import org.w3c.dom.Element
-import shapeless.~>
-import spray.http.FormData
+import spray.http.{FormData, GenericHttpCredentials}
+import spray.httpx.SprayJsonSupport
+import spray.json.DefaultJsonProtocol
+import ChromaParserProtocol._
 
 import scala.concurrent.{Await, Future}
 
@@ -37,8 +41,11 @@ class LGWFeedSpec extends TestKit(ActorSystem("testActorSystem", ConfigFactory.p
   "PORT_CODE" -> "LGW",
   "feeds.gatwick.live.azure.name.id" -> "UKBF",
   "feeds.gatwick.live.azure.issuer" -> "UKBF",
-  "feeds.gatwick.live.azure.namespace" -> "gatwick-data-hub-test"
+  "feeds.gatwick.live.azure.namespace" -> ???
 ).asJava))) with SpecificationLike {
+
+  sequential
+  isolated
 
   //  val tokenScope = s"http://${xxx}.servicebus.windows.net/partners/${yyy}/to"
   //  val httpPostUri = s"https://${xxx}-sb.accesscontrol.windows.net/v2/OAuth2-13"
@@ -143,11 +150,13 @@ class LGWFeedSpec extends TestKit(ActorSystem("testActorSystem", ConfigFactory.p
     assertion
   }
 
+  val security = DefaultSecurityConfigurationBootstrap.buildDefaultConfig
   def signAssertion(assertion: Assertion, privateKey: Array[Byte], certificate: Array[Byte]) {
     val signature = new SignatureBuilder().buildObject
     val signingCredential = CredentialsFactory.getSigningCredential(privateKey, certificate)
     signature.setSigningCredential(signingCredential)
-    val secConfig = Configuration.getGlobalSecurityConfiguration
+    val secConfig = security //Configuration.getGlobalSecurityConfiguration
+    println(s"secConfig $secConfig")
     SecurityHelper.prepareSignatureParams(signature, signingCredential, secConfig, null)
     assertion.setSignature(signature)
   }
@@ -157,14 +166,16 @@ class LGWFeedSpec extends TestKit(ActorSystem("testActorSystem", ConfigFactory.p
 
   "something" should {
     "do something" in {
-      DefaultBootstrap.bootstrap()
-      val certificateURI = FileSystems.getDefault.getPath("/home/lance/clients/sf_clients/homeoffice/drt/certs/idahoconnect.drt.homeoffice.gov.uk.cert")
+//      DefaultBootstrap.bootstrap()
+
+      val certfilpath = "idahoconnect.drt.homeoffice.gov.uk.cert"
+      val certificateURI = FileSystems.getDefault.getPath(certfilpath)
 
       if (!certificateURI.toFile.canRead) {
-        throw new Exception(s"Could not read Gatwick certificate file from /tmp/drt-lgw.cert")
+        throw new Exception(s"Could not read Gatwick certificate file from $certfilpath")
       }
 
-      val privateKeyURI = FileSystems.getDefault.getPath("/home/lance/clients/sf_clients/homeoffice/drt/certs/idahoconnect.drt.homeoffice.gov.uk.private-pkcs8.pem")
+      val privateKeyURI = FileSystems.getDefault.getPath("idahoconnect.drt.homeoffice.gov.uk.private-pkcs8.pem")
 
       if (!privateKeyURI.toFile.canRead) {
         throw new Exception(s"Could not read Gatwick private key file from /tmp/drt-lgw.pem")
@@ -189,7 +200,7 @@ class LGWFeedSpec extends TestKit(ActorSystem("testActorSystem", ConfigFactory.p
       val azureServiceNamespace = config.getString("feeds.gatwick.live.azure.namespace")
       val issuer = config.getString("feeds.gatwick.live.azure.issuer")
       val tokenScope = s"http://$azureServiceNamespace.servicebus.windows.net/partners/$issuer/to"
-      val httpPostUri = s"https://$azureServiceNamespace-sb.accesscontrol.windows.net/v2/OAuth2-13"
+      val tokenPostUri = s"https://$azureServiceNamespace-sb.accesscontrol.windows.net/v2/OAuth2-13"
 
       val paramsAsForm = FormData(Map(
         "scope" -> tokenScope,
@@ -202,15 +213,29 @@ class LGWFeedSpec extends TestKit(ActorSystem("testActorSystem", ConfigFactory.p
       val logRequest: HttpRequest => HttpRequest = { r => println(r); r }
       val logResponse: HttpResponse => HttpResponse = { r => println(r); r }
 
-      val postResult: Future[HttpResponse] = (
-        Post(httpPostUri, paramsAsForm)
+      val tokenPostPipeline = (
+        addHeader(Accept(MediaTypes.`application/json`))
           ~> logRequest
-          ~> sendReceive)
+          ~> sendReceive
+          //~> unmarshal[ChromaToken]
+        )
+
+      val tokenPostResult = tokenPostPipeline(Post(tokenPostUri, paramsAsForm))
 
       import scala.concurrent.duration._
 
-      val result = Await.result(postResult, 10 seconds)
-      println(s"result $result")
+      val tokenResult = Await.result(tokenPostResult, 10 seconds)
+      println(s"tokenResult $tokenResult")
+      val restApiTimeout = 30 //seconds
+      //      val token = tokenResult.entity.data.asString
+      val serviceBusUri = s"https://${azureServiceNamespace}.servicebus.windows.net/partners/${issuer}/to/messages/head?timeout=$restApiTimeout"
+      val wrapHeder = "WRAP access_token=\"" + tokenResult + "\""
+
+      val sbResultFuture = (
+        Post(serviceBusUri)
+          ~> addHeader("Authorization", wrapHeder)
+        )
+
       false
 
     }
