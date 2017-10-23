@@ -42,7 +42,6 @@ object FlightsWithSplitsTable {
             <.table(
               ^.className := "table table-responsive table-striped table-hover table-sm",
               <.thead(<.tr(
-                timelineTh,
                 <.th("Flight"), <.th("Origin"),
                 <.th("Gate/Stand"),
                 <.th("Status"),
@@ -52,7 +51,10 @@ object FlightsWithSplitsTable {
                 <.th("Est Chox"),
                 <.th("Act Chox"),
                 <.th("Est PCP"),
-                <.th("Pax Nos"),
+                <.th("API"),
+                <.th("Port"),
+                <.th("API Tx"),
+                <.th("Port Tx"),
                 <.th("Splits")
               )),
               <.tbody(
@@ -169,10 +171,11 @@ object FlightTableRow {
         val apiSplits = flightWithSplits.splits
           .find(splits => splits.source == SplitRatiosNs.SplitSources.ApiSplitsWithCsvPercentage)
           .getOrElse(ApiSplits(Set(), "no splits - client", None))
+        val apiPax: Int = ApiSplits.totalPax(apiSplits.splits).toInt
+        val apiExTransPax: Int = ApiSplits.totalExcludingTransferPax(apiSplits.splits).toInt
 
         <.tr(^.key := flight.uniqueId.toString,
           hasChangedStyle,
-          props.timelineComponent.map(timeline => <.td(timeline(flight))).toList.toTagMod,
           <.td(^.key := flight.uniqueId.toString + "-flightNo", allCodes.mkString(" - ")),
           <.td(^.key := flight.uniqueId.toString + "-origin", props.originMapper(flight.Origin)),
           <.td(^.key := flight.uniqueId.toString + "-gatestand", s"${flight.Gate}/${flight.Stand}"),
@@ -183,6 +186,10 @@ object FlightTableRow {
           <.td(^.key := flight.uniqueId.toString + "-estchoxdt", localDateTimeWithPopup(flight.EstChoxDT)),
           <.td(^.key := flight.uniqueId.toString + "-actchoxdt", localDateTimeWithPopup(flight.ActChoxDT)),
           <.td(^.key := flight.uniqueId.toString + "-pcptimefrom", pcpTimeRange(flight, props.bestPax)),
+          <.td(^.key := flight.uniqueId.toString + "-apipax", apiPax),
+          <.td(^.key := flight.uniqueId.toString + "-portpax", flight.ActPax),
+          <.td(^.key := flight.uniqueId.toString + "-apitx", apiPax - apiExTransPax),
+          <.td(^.key := flight.uniqueId.toString + "-porttx", flight.TranPax),
           <.td(^.key := flight.uniqueId.toString + "-actpax", props.paxComponent(flight, apiSplits)),
           <.td(^.key := flight.uniqueId.toString + "-splits", splitsComponents.toTagMod))
       }.recover {
