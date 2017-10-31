@@ -7,7 +7,7 @@ import drt.shared.SplitRatiosNs.SplitSources
 import drt.shared._
 import japgolly.scalajs.react._
 import japgolly.scalajs.react.extra.Reusability
-import japgolly.scalajs.react.vdom.html_<^._
+import japgolly.scalajs.react.vdom.html_<^.{^, _}
 import japgolly.scalajs.react.vdom.{TagMod, TagOf}
 import org.scalajs.dom.html.Div
 
@@ -53,8 +53,17 @@ object FlightsWithSplitsTable {
                 <.th("Est PCP"),
                 <.th("API"),
                 <.th("Port"),
+<<<<<<< HEAD
                 <.th("API Tx"),
                 <.th("Port Tx"),
+=======
+                <.th("Diff"),
+                <.th(""),
+                <.th("API Tx"),
+                <.th("Port Tx"),
+                <.th("Diff Tx"),
+                <.th(""),
+>>>>>>> Analysis of Port and API data
                 <.th("Splits")
               )),
               <.tbody(
@@ -173,6 +182,18 @@ object FlightTableRow {
           .getOrElse(ApiSplits(Set(), "no splits - client", None))
         val apiPax: Int = ApiSplits.totalPax(apiSplits.splits).toInt
         val apiExTransPax: Int = ApiSplits.totalExcludingTransferPax(apiSplits.splits).toInt
+        val bigDiffAlert = if (math.abs(flight.ActPax - apiPax) <=5) {
+          ^.background := "rgba(0,255,0,0.5) "
+        } else if (math.abs(flight.ActPax - apiPax)>9) {
+          ^.background := "rgba(255,200,200,0.5) "
+        } else if (math.abs(flight.ActPax - apiPax)>5) {
+          ^.background := "rgba(255,193,7,0.5) "
+        } else ^.outline := ""
+        val bigDiffTxAlert = if (math.abs(flight.TranPax - (apiPax-apiExTransPax))>9) {^.background := "rgba(255,200,200,0.5) "
+        } else if (math.abs(flight.TranPax - (apiPax-apiExTransPax))>5) {^.background := "rgba(255,193,7,0.5) "
+        } else if (math.abs(flight.TranPax - (apiPax-apiExTransPax))<=5) {^.background := "rgba(0,255,0,0.5) "
+        } else {^.outline := ""
+        }
 
         <.tr(^.key := flight.uniqueId.toString,
           hasChangedStyle,
@@ -188,12 +209,15 @@ object FlightTableRow {
           <.td(^.key := flight.uniqueId.toString + "-pcptimefrom", pcpTimeRange(flight, props.bestPax)),
           <.td(^.key := flight.uniqueId.toString + "-apipax", apiPax),
           <.td(^.key := flight.uniqueId.toString + "-portpax", flight.ActPax),
-          <.td(^.key := flight.uniqueId.toString + "-paxdiff", math.abs(flight.ActPax - apiPax)),
+          <.td(^.key := flight.uniqueId.toString + "-paxdiff", bigDiffAlert(math.abs(flight.ActPax - apiPax))),
+          <.td(^.key := flight.uniqueId.toString + "-blank", ""),
           <.td(^.key := flight.uniqueId.toString + "-apitx", apiPax - apiExTransPax),
           <.td(^.key := flight.uniqueId.toString + "-porttx", flight.TranPax),
-          <.td(^.key := flight.uniqueId.toString + "-txdiff", math.abs(flight.TranPax - (apiPax - apiExTransPax))),
+          <.td(^.key := flight.uniqueId.toString + "-txdiff", bigDiffTxAlert(math.abs(flight.TranPax - (apiPax - apiExTransPax)))),
+          <.td(^.key := flight.uniqueId.toString + "-blank1", ""),
           <.td(^.key := flight.uniqueId.toString + "-splits", splitsComponents.toTagMod))
       }.recover {
+
         case e => log.error(s"couldn't make flight row $e")
           <.tr(s"failure $e, ${e.getMessage} ${e.getStackTrace.mkString(",")}")
       }.get
