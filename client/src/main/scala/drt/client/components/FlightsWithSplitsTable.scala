@@ -50,23 +50,24 @@ object FlightsWithSplitsTable {
                 classesAttr,
                 tableHead(props, timelineTh, queueNames))),
             <.table(
-              ^.id := "sticky-body",
-              dataStickyAttr,
-              classesAttr,
-              tableHead(props, timelineTh, queueNames),
-              <.tbody(
-                sortedFlights.zipWithIndex.map {
-                  case ((flightWithSplits, codeShares), idx) =>
-                    FlightTableRow.tableRow(FlightTableRow.Props(
-                      flightWithSplits, codeShares, idx,
-                      timelineComponent = timelineComponent,
-                      originMapper = originMapper,
-                      paxComponent = paxComponent,
-                      splitsGraphComponent = splitsGraphComponent,
-                      splitsQueueOrder = props.queueOrder,
-                      hasEstChox = props.hasEstChox
-                    ))
-                }.toTagMod)))
+              ^.className := "table table-responsive table-striped table-hover table-sm",
+              <.thead(<.tr(
+                timelineTh,
+                <.th("Flight"),
+                <.th("Origin"),
+                <.th("Gate/Stand"),
+                <.th("Status"),
+                <.th("Sch"),
+                <.th("Est"),
+                <.th("Act"),
+                if (props.hasEstChox) <.th("Est Chox") else "",
+                <.th("Act Chox"),
+                <.th("Est PCP"),
+                <.th("API"),
+                <.th("Port"),
+                <.th("Diff"),
+                <.th("S")
+              ))
         }
         else
           <.div("Loading flights...")
@@ -173,6 +174,8 @@ object FlightTableRow {
         val hasChangedStyle = if (state.hasChanged) ^.background := "rgba(255, 200, 200, 0.5) " else ^.outline := ""
         val timeIndicatorClass = if (flight.PcpTime < SDate.now().millisSinceEpoch) "before-now" else "from-now"
 
+        val apiSplits = flightWithSplits.apiSplits.getOrElse(ApiSplits(Set(), "no splits - client", None))
+        val apiPax: Int = ApiSplits.totalPax(apiSplits.splits).toInt
         val queueNames = ApiSplitsToSplitRatio.queuesFromPaxTypeAndQueue(props.splitsQueueOrder)
         val queuePax: Map[QueueName, Int] = ApiSplitsToSplitRatio.paxPerQueueUsingBestSplitsAsRatio(flightWithSplits).getOrElse(Map())
         <.tr(
@@ -192,8 +195,9 @@ object FlightTableRow {
           else "",
           <.td(^.key := flight.uniqueId.toString + "-actchoxdt", localDateTimeWithPopup(flight.ActChoxDT)),
           <.td(^.key := flight.uniqueId.toString + "-pcptimefrom", pcpTimeRange(flight, ArrivalHelper.bestPax)),
-          <.td(^.key := flight.uniqueId.toString + "-actpax", props.paxComponent(flightWithSplits)),
-          queueNames.map(q => <.td(s"${queuePax.getOrElse(q, 0)}")).toTagMod
+          <.td(^.key := flight.uniqueId.toString + "-apipax", apiPax),
+          <.td(^.key := flight.uniqueId.toString + "-portpax", flight.ActPax),
+          <.td(^.key := flight.uniqueId.toString + "-diffpax", math.abs(flight.ActPax - apiPax))
         )
       }.recover {
         case e => log.error(s"couldn't make flight row $e")
