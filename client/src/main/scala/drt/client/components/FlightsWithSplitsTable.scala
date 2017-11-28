@@ -55,10 +55,10 @@ object FlightsWithSplitsTable {
                 if (props.hasEstChox) <.th("Est Chox") else "",
                 <.th("Act Chox"),
                 <.th("Est PCP"),
-                <.th("Pax Nos"),
-                queueNames.map(
-                  q => <.th(Queues.queueDisplayNames(q))
-                ).toTagMod
+                <.th("API"),
+                <.th("Port"),
+                <.th("Diff"),
+                <.th("S"),
               )),
               <.tbody(
                 sortedFlights.zipWithIndex.map {
@@ -163,6 +163,8 @@ object FlightTableRow {
           "danger"
         else ""
 
+        val apiSplits = flightWithSplits.apiSplits.getOrElse(ApiSplits(Set(), "no splits - client", None))
+        val apiPax: Int = ApiSplits.totalPax(apiSplits.splits).toInt
         val queueNames = ApiSplitsToSplitRatio.queuesFromPaxTypeAndQueue(props.splitsQueueOrder)
         val queuePax: Map[QueueName, Int] = ApiSplitsToSplitRatio.paxPerQueueUsingBestSplitsAsRatio(flightWithSplits).getOrElse(Map())
         <.tr(^.key := flight.uniqueId.toString, ^.className := offScheduleClass,
@@ -180,8 +182,9 @@ object FlightTableRow {
           else "",
           <.td(^.key := flight.uniqueId.toString + "-actchoxdt", localDateTimeWithPopup(flight.ActChoxDT)),
           <.td(^.key := flight.uniqueId.toString + "-pcptimefrom", pcpTimeRange(flight, ArrivalHelper.bestPax)),
-          <.td(^.key := flight.uniqueId.toString + "-actpax", props.paxComponent(flightWithSplits)),
-          queueNames.map(q => <.td(s"${queuePax.getOrElse(q, 0)}")).toTagMod
+          <.td(^.key := flight.uniqueId.toString + "-apipax", apiPax),
+          <.td(^.key := flight.uniqueId.toString + "-portpax", flight.ActPax),
+          <.td(^.key := flight.uniqueId.toString + "-diffpax", math.abs(flight.ActPax - apiPax))
         )
       }.recover {
         case e => log.error(s"couldn't make flight row $e")
