@@ -58,7 +58,9 @@ object FlightsWithSplitsTable {
                 <.th("API"),
                 <.th("Port"),
                 <.th("Diff"),
-                <.th("S"),
+                queueNames.map(
+                  q => <.th(Queues.queueDisplayNames(q))
+                ).toTagMod
               )),
               <.tbody(
                 sortedFlights.zipWithIndex.map {
@@ -184,7 +186,8 @@ object FlightTableRow {
           <.td(^.key := flight.uniqueId.toString + "-pcptimefrom", pcpTimeRange(flight, ArrivalHelper.bestPax)),
           <.td(^.key := flight.uniqueId.toString + "-apipax", apiPax),
           <.td(^.key := flight.uniqueId.toString + "-portpax", flight.ActPax),
-          <.td(^.key := flight.uniqueId.toString + "-diffpax", math.abs(flight.ActPax - apiPax))
+          <.td(^.key := flight.uniqueId.toString + "-diffpax", math.abs(flight.ActPax - apiPax)),
+          queueNames.map(q => <.td(s"${queuePax.getOrElse(q, 0)}")).toTagMod
         )
       }.recover {
         case e => log.error(s"couldn't make flight row $e")
