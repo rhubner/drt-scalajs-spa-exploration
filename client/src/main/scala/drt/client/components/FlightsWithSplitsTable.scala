@@ -67,8 +67,8 @@ object FlightsWithSplitsTable {
                 <.th("Port"),
                 <.th("Diff"),
                 <.th("S")
-              ))
-        }
+              )))
+            )}
         else
           <.div("Loading flights...")
       } match {
